@@ -1,0 +1,61 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    overflow: hidden;
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .pwa-safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .pwa-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .font-mono,
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Тонкий ненавязчивый паттерн фона чата в стиле WhatsApp */
+.wa-chat-canvas {
+  background-color: #efeae2;
+  background-image: radial-gradient(rgba(17, 27, 33, 0.045) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+.dark .wa-chat-canvas {
+  background-color: #0b141a;
+  background-image: radial-gradient(rgba(233, 237, 239, 0.035) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+/* Аккуратный тонкий скроллбар */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(134, 150, 160, 0.35);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(134, 150, 160, 0.55);
+}

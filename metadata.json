@@ -1,0 +1,6 @@
+{
+  "name": "WhatsApp Web Локальный Мессенджер",
+  "description": "Веб-мессенджер в стиле WhatsApp с чатами, аудио/видеозвонками, отправкой сжатых фото, видео и голосовых сообщений, хранением в LocalStorage и IndexedDB и полным бэкапом в один файл.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

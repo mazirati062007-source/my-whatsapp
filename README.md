@@ -1,11 +1,37 @@
-<div align="center">
+# WhatsApp Web · Защищённый Мессенджер (PWA + E2EE)
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Полнофункциональное веб-приложение (Progressive Web App) с интерфейсом мессенджера, сквозным шифрованием (End-to-End Encryption), авторизацией Google Auth, поиском друзей, аудио/видеозвонками, сжатием медиафайлов и автономным хранилищем.
 
-  <h1>Built with AI Studio</h2>
+## Основные возможности
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+1. **Сквозное шифрование (End-to-End Encryption)**:
+   - Обмен ключами `ECDH P-256` (неизвлекаемые приватные ключи `extractable: false` в изолированном хранилище `IndexedDB`) + деривация `HKDF-SHA256` + шифрование `AES-256-GCM` для текстов, цитат, голосовых заметок и медиа-превью.
+   - Сверка 60-значного криптографического кода безопасности диалога.
+   - Шифрование всех локальных чатов и медиафайлов на диске (`AES-256-GCM`) и защита экспортируемого файла «Бэкап» паролем (`PBKDF2-SHA256` 210 000 итераций + `AES-256-GCM`).
+2. **Защита сессий и валидация Google Auth**:
+   - Проверка криптографических клеймов токена Google (`google.com`, `email_verified`, `aud`, срок действия).
+   - Привязка сессии к SHA-256 отпечатку браузера, защита от всплесков запросов, межвкладочный экстренный выход и настраиваемый таймер автовыхода по бездействию.
+3. **Полноценный PWA (Progressive Web App)**:
+   - `manifest.json` (`display: "standalone"`), `Service Worker` (Workbox с автообновлением и офлайн-кэшем), адаптивные иконки `192x192`, `512x512`, `maskable 512x512`, `apple-touch-icon.png` и `icon.svg`.
+   - Встроенная кнопка **«Установить на телефон»** (поддержка системного окна установки Android/Chromium и пошагового режима для iOS Safari).
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## Быстрый запуск локально
 
-</div>
+```bash
+# 1. Установка зависимостей
+npm install
+
+# 2. Запуск сервера разработки (http://localhost:3000)
+npm run dev
+
+# 3. Сборка продакшн-версии с генерацией manifest.json и Service Worker (в папку dist/)
+npm run build
+```
+
+## Где находятся файлы PWA
+
+- `vite.config.ts` — конфигурация `VitePWA` (генерация `manifest.json` и настройка Workbox Service Worker).
+- `public/` — иконки приложения (`icon.svg`, `apple-touch-icon.png`, `pwa-192x192.png`, `pwa-512x512.png`, `pwa-maskable-512x512.png`).
+- `src/main.tsx` — регистрация Service Worker (`virtual:pwa-register`).
+- `src/hooks/usePWAInstall.ts` и `src/components/PWAInstallPrompt.tsx` — хук и интерфейс установки приложения на рабочий стол телефона.
+- `pwa-build/` (внутри архива) — готовые скомпилированные файлы `manifest.json` и `sw.js` для наглядного ознакомления.

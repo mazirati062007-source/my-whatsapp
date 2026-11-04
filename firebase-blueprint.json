@@ -1,0 +1,443 @@
+{
+  "entities": {
+    "PublicProfile": {
+      "title": "PublicProfile",
+      "description": "Publicly discoverable user profile without PII, publishing ECDH P-256 public key for E2EE.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the user."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Display name shown in search and chats."
+        },
+        "searchName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Lowercase normalized display name for friend search."
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "Avatar URL from Google profile."
+        },
+        "about": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Short bio or status text."
+        },
+        "onlineStatus": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "Human-readable presence status."
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["discoverable", "hidden"],
+          "maxLength": 20,
+          "description": "Controls whether this profile can be found in friend search."
+        },
+        "publicKeyJwk": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "Serialized ECDH P-256 public key JWK for End-to-End Encryption."
+        },
+        "keyFingerprint": {
+          "type": "string",
+          "maxLength": 96,
+          "description": "Human-verifiable SHA-256 fingerprint of the ECDH public key."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "searchName",
+        "photoURL",
+        "about",
+        "onlineStatus",
+        "visibility",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserPrivate": {
+      "title": "UserPrivate",
+      "description": "Strictly isolated PII and session binding metadata readable and writable only by the account owner.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the owner."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 254,
+          "description": "Google account email address (isolated PII)."
+        },
+        "sessionFingerprint": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "SHA-256 device/browser session binding fingerprint."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["uid", "email", "createdAt", "updatedAt"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Direct 1-on-1 E2EE chat room between two registered users with ECDH public keys and encrypted previews.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Deterministic conversation ID."
+        },
+        "participantOneId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of first participant."
+        },
+        "participantTwoId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of second participant."
+        },
+        "participantOneName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Display name of first participant."
+        },
+        "participantOnePhoto": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "Avatar URL of first participant."
+        },
+        "participantTwoName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Display name of second participant."
+        },
+        "participantTwoPhoto": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "Avatar URL of second participant."
+        },
+        "participantOnePubKey": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "ECDH P-256 public key JWK of first participant."
+        },
+        "participantTwoPubKey": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "ECDH P-256 public key JWK of second participant."
+        },
+        "lastMessagePreview": {
+          "type": "string",
+          "maxLength": 240,
+          "description": "Masked non-sensitive preview indicator."
+        },
+        "lastMessageCiphertext": {
+          "type": "string",
+          "maxLength": 2048,
+          "description": "AES-256-GCM encrypted last message preview."
+        },
+        "lastMessageIv": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Base64 96-bit IV for lastMessageCiphertext."
+        },
+        "lastMessageTimeMs": {
+          "type": "number",
+          "description": "Epoch milliseconds for sorting chat list."
+        },
+        "activeCallType": {
+          "type": "string",
+          "enum": ["none", "audio", "video"],
+          "maxLength": 10,
+          "description": "Current live call type."
+        },
+        "activeCallStatus": {
+          "type": "string",
+          "enum": ["idle", "ringing", "connected", "ended"],
+          "maxLength": 16,
+          "description": "Current live call signaling status."
+        },
+        "activeCallInitiatorId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "UID of caller when a call is active, or empty string."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": [
+        "id",
+        "participantOneId",
+        "participantTwoId",
+        "participantOneName",
+        "participantOnePhoto",
+        "participantTwoName",
+        "participantTwoPhoto",
+        "lastMessagePreview",
+        "lastMessageTimeMs",
+        "activeCallType",
+        "activeCallStatus",
+        "activeCallInitiatorId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "End-to-End Encrypted message record inside a conversation subcollection.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Message ID."
+        },
+        "conversationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Parent conversation ID."
+        },
+        "participantOneId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Synced first participant UID."
+        },
+        "participantTwoId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Synced second participant UID."
+        },
+        "senderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of message author."
+        },
+        "senderName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Display name of message author."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["text", "image", "video", "voice", "call_event"],
+          "maxLength": 20,
+          "description": "Message content type."
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "Masked placeholder when isEncrypted is true."
+        },
+        "isEncrypted": {
+          "type": "boolean",
+          "description": "Indicates AES-256-GCM E2EE protection."
+        },
+        "e2eeCiphertext": {
+          "type": "string",
+          "maxLength": 16000,
+          "description": "AES-256-GCM ciphertext of message text, reply quote, and waveform."
+        },
+        "e2eeIv": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Base64 96-bit IV for e2eeCiphertext."
+        },
+        "e2eeMediaCiphertext": {
+          "type": "string",
+          "maxLength": 95000,
+          "description": "AES-256-GCM encrypted media thumbnail or compact Opus voice payload."
+        },
+        "e2eeMediaIv": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Base64 96-bit IV for e2eeMediaCiphertext."
+        },
+        "senderPubKey": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "Sender ECDH P-256 public key JWK."
+        },
+        "recipientPubKey": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "Recipient ECDH P-256 public key JWK."
+        },
+        "timestampMs": {
+          "type": "number",
+          "description": "Epoch milliseconds for chronological sorting."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["sent", "delivered", "read"],
+          "maxLength": 16,
+          "description": "Delivery receipt status (terminal at read)."
+        },
+        "mediaId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "SHA-256 reference to encrypted local IndexedDB media."
+        },
+        "mediaMimeType": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "MIME type of attached media."
+        },
+        "previewDataUrl": {
+          "type": "string",
+          "maxLength": 60000,
+          "description": "Empty string when E2EE media encryption is active."
+        },
+        "compressedSize": {
+          "type": "number",
+          "description": "Byte size after compression."
+        },
+        "originalSize": {
+          "type": "number",
+          "description": "Original byte size before compression."
+        },
+        "mediaDuration": {
+          "type": "number",
+          "description": "Audio/video duration in seconds."
+        },
+        "callType": {
+          "type": "string",
+          "enum": ["none", "audio", "video"],
+          "maxLength": 10,
+          "description": "Call type when type is call_event."
+        },
+        "callDurationSec": {
+          "type": "number",
+          "description": "Call duration in seconds."
+        },
+        "replyToSender": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "Empty when encrypted inside e2eeCiphertext."
+        },
+        "replyToPreview": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Empty when encrypted inside e2eeCiphertext."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": [
+        "id",
+        "conversationId",
+        "participantOneId",
+        "participantTwoId",
+        "senderId",
+        "senderName",
+        "type",
+        "text",
+        "timestampMs",
+        "status",
+        "mediaId",
+        "mediaMimeType",
+        "previewDataUrl",
+        "compressedSize",
+        "originalSize",
+        "mediaDuration",
+        "callType",
+        "callDurationSec",
+        "replyToSender",
+        "replyToPreview",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/publicProfiles/{userId}": {
+      "schema": { "$ref": "#/entities/PublicProfile" },
+      "description": "Public non-PII profiles with ECDH P-256 public keys for friend discovery and E2EE key exchange."
+    },
+    "/userPrivate/{userId}": {
+      "schema": { "$ref": "#/entities/UserPrivate" },
+      "description": "Private PII and session binding records strictly restricted to the owner."
+    },
+    "/conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/Conversation" },
+      "description": "Direct E2EE conversations between two registered users."
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "End-to-End Encrypted messages belonging to a direct conversation."
+    }
+  }
+}

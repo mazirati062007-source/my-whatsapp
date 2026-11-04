@@ -1,0 +1,468 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default-Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Reusable Hardened Primitives ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Blueprints (Anti-Update-Gap + E2EE Strict Bounds) ---
+    function isValidPublicProfile(data) {
+      return data.keys().hasAll([
+          'uid',
+          'displayName',
+          'searchName',
+          'photoURL',
+          'about',
+          'onlineStatus',
+          'visibility',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'displayName',
+          'searchName',
+          'photoURL',
+          'about',
+          'onlineStatus',
+          'visibility',
+          'publicKeyJwk',
+          'keyFingerprint',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && data.searchName is string && data.searchName.size() >= 1 && data.searchName.size() <= 80
+        && data.photoURL is string && data.photoURL.size() <= 1024
+        && data.about is string && data.about.size() <= 160
+        && data.onlineStatus is string && data.onlineStatus.size() <= 60
+        && data.visibility is string && data.visibility.size() <= 20
+        && (data.visibility == 'discoverable' || data.visibility == 'hidden')
+        && (!('publicKeyJwk' in data) || (data.publicKeyJwk is string && data.publicKeyJwk.size() <= 512))
+        && (!('keyFingerprint' in data) || (data.keyFingerprint is string && data.keyFingerprint.size() <= 96))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivate(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'sessionFingerprint', 'createdAt', 'updatedAt'])
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && (!('sessionFingerprint' in data) || (data.sessionFingerprint is string && data.sessionFingerprint.size() <= 128))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidConversation(data) {
+      return data.keys().hasAll([
+          'id',
+          'participantOneId',
+          'participantTwoId',
+          'participantOneName',
+          'participantOnePhoto',
+          'participantTwoName',
+          'participantTwoPhoto',
+          'lastMessagePreview',
+          'lastMessageTimeMs',
+          'activeCallType',
+          'activeCallStatus',
+          'activeCallInitiatorId',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'participantOneId',
+          'participantTwoId',
+          'participantOneName',
+          'participantOnePhoto',
+          'participantTwoName',
+          'participantTwoPhoto',
+          'participantOnePubKey',
+          'participantTwoPubKey',
+          'lastMessagePreview',
+          'lastMessageCiphertext',
+          'lastMessageIv',
+          'lastMessageTimeMs',
+          'activeCallType',
+          'activeCallStatus',
+          'activeCallInitiatorId',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.participantOneId)
+        && isValidId(data.participantTwoId)
+        && data.participantOneId != data.participantTwoId
+        && (data.participantOneId == request.auth.uid || data.participantTwoId == request.auth.uid)
+        && data.participantOneName is string && data.participantOneName.size() >= 1 && data.participantOneName.size() <= 80
+        && data.participantOnePhoto is string && data.participantOnePhoto.size() <= 1024
+        && data.participantTwoName is string && data.participantTwoName.size() >= 1 && data.participantTwoName.size() <= 80
+        && data.participantTwoPhoto is string && data.participantTwoPhoto.size() <= 1024
+        && (!('participantOnePubKey' in data) || (data.participantOnePubKey is string && data.participantOnePubKey.size() <= 512))
+        && (!('participantTwoPubKey' in data) || (data.participantTwoPubKey is string && data.participantTwoPubKey.size() <= 512))
+        && data.lastMessagePreview is string && data.lastMessagePreview.size() <= 240
+        && (!('lastMessageCiphertext' in data) || (data.lastMessageCiphertext is string && data.lastMessageCiphertext.size() <= 2048))
+        && (!('lastMessageIv' in data) || (data.lastMessageIv is string && data.lastMessageIv.size() <= 64))
+        && data.lastMessageTimeMs is number && data.lastMessageTimeMs >= 0
+        && data.activeCallType is string && data.activeCallType.size() <= 10
+        && (data.activeCallType == 'none' || data.activeCallType == 'audio' || data.activeCallType == 'video')
+        && data.activeCallStatus is string && data.activeCallStatus.size() <= 16
+        && (
+          data.activeCallStatus == 'idle'
+          || data.activeCallStatus == 'ringing'
+          || data.activeCallStatus == 'connected'
+          || data.activeCallStatus == 'ended'
+        )
+        && data.activeCallInitiatorId is string && data.activeCallInitiatorId.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidChatMessage(data) {
+      return data.keys().hasAll([
+          'id',
+          'conversationId',
+          'participantOneId',
+          'participantTwoId',
+          'senderId',
+          'senderName',
+          'type',
+          'text',
+          'timestampMs',
+          'status',
+          'mediaId',
+          'mediaMimeType',
+          'previewDataUrl',
+          'compressedSize',
+          'originalSize',
+          'mediaDuration',
+          'callType',
+          'callDurationSec',
+          'replyToSender',
+          'replyToPreview',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'conversationId',
+          'participantOneId',
+          'participantTwoId',
+          'senderId',
+          'senderName',
+          'type',
+          'text',
+          'isEncrypted',
+          'e2eeCiphertext',
+          'e2eeIv',
+          'e2eeMediaCiphertext',
+          'e2eeMediaIv',
+          'senderPubKey',
+          'recipientPubKey',
+          'timestampMs',
+          'status',
+          'mediaId',
+          'mediaMimeType',
+          'previewDataUrl',
+          'compressedSize',
+          'originalSize',
+          'mediaDuration',
+          'callType',
+          'callDurationSec',
+          'replyToSender',
+          'replyToPreview',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.conversationId)
+        && isValidId(data.participantOneId)
+        && isValidId(data.participantTwoId)
+        && isValidId(data.senderId)
+        && (data.participantOneId == request.auth.uid || data.participantTwoId == request.auth.uid)
+        && data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80
+        && data.type is string && data.type.size() <= 20
+        && (
+          data.type == 'text'
+          || data.type == 'image'
+          || data.type == 'video'
+          || data.type == 'voice'
+          || data.type == 'call_event'
+        )
+        && data.text is string && data.text.size() <= 4000
+        && (!('isEncrypted' in data) || data.isEncrypted is bool)
+        && (!('e2eeCiphertext' in data) || (data.e2eeCiphertext is string && data.e2eeCiphertext.size() <= 16000))
+        && (!('e2eeIv' in data) || (data.e2eeIv is string && data.e2eeIv.size() <= 64))
+        && (!('e2eeMediaCiphertext' in data) || (data.e2eeMediaCiphertext is string && data.e2eeMediaCiphertext.size() <= 95000))
+        && (!('e2eeMediaIv' in data) || (data.e2eeMediaIv is string && data.e2eeMediaIv.size() <= 64))
+        && (!('senderPubKey' in data) || (data.senderPubKey is string && data.senderPubKey.size() <= 512))
+        && (!('recipientPubKey' in data) || (data.recipientPubKey is string && data.recipientPubKey.size() <= 512))
+        && data.timestampMs is number && data.timestampMs >= 0
+        && data.status is string && data.status.size() <= 16
+        && (data.status == 'sent' || data.status == 'delivered' || data.status == 'read')
+        && data.mediaId is string && data.mediaId.size() <= 128
+        && data.mediaMimeType is string && data.mediaMimeType.size() <= 80
+        && data.previewDataUrl is string && data.previewDataUrl.size() <= 60000
+        && data.compressedSize is number && data.compressedSize >= 0
+        && data.originalSize is number && data.originalSize >= 0
+        && data.mediaDuration is number && data.mediaDuration >= 0
+        && data.callType is string && data.callType.size() <= 10
+        && (data.callType == 'none' || data.callType == 'audio' || data.callType == 'video')
+        && data.callDurationSec is number && data.callDurationSec >= 0
+        && data.replyToSender is string && data.replyToSender.size() <= 80
+        && data.replyToPreview is string && data.replyToPreview.size() <= 200
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isConversationMemberByGet(conversationId) {
+      let conv = get(/databases/$(database)/documents/conversations/$(conversationId)).data;
+      return conv.participantOneId == request.auth.uid || conv.participantTwoId == request.auth.uid;
+    }
+
+    function matchesParentConversation(conversationId, data) {
+      let conv = get(/databases/$(database)/documents/conversations/$(conversationId)).data;
+      return data.conversationId == conversationId
+        && data.participantOneId == conv.participantOneId
+        && data.participantTwoId == conv.participantTwoId
+        && (conv.participantOneId == request.auth.uid || conv.participantTwoId == request.auth.uid);
+    }
+
+    // 2. Public Profiles Collection (No PII, Publishes ECDH Public Key)
+    match /publicProfiles/{userId} {
+      allow get: if isSignedIn()
+        && isValidId(userId)
+        && (resource == null || existing().uid == request.auth.uid || existing().visibility == 'discoverable');
+
+      allow list: if isSignedIn()
+        && resource.data.visibility == 'discoverable'
+        && request.query.limit <= 50;
+
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && userId == request.auth.uid
+        && isValidPublicProfile(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidPublicProfile(incoming())
+        && userId == request.auth.uid
+        && existing().uid == request.auth.uid
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Update profile info, presence, or E2EE public key
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName',
+            'searchName',
+            'photoURL',
+            'about',
+            'onlineStatus',
+            'visibility',
+            'publicKeyJwk',
+            'keyFingerprint',
+            'updatedAt'
+          ])
+        );
+
+      allow delete: if false;
+    }
+
+    // 3. Isolated Private PII & Session Binding Collection (Owner-Only)
+    match /userPrivate/{userId} {
+      allow get: if isSignedIn()
+        && isValidId(userId)
+        && userId == request.auth.uid
+        && (resource == null || existing().uid == request.auth.uid);
+
+      allow list: if false;
+
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && userId == request.auth.uid
+        && isValidUserPrivate(incoming())
+        && incoming().email == request.auth.token.email
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidUserPrivate(incoming())
+        && userId == request.auth.uid
+        && existing().uid == request.auth.uid
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().email == request.auth.token.email
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'email',
+            'sessionFingerprint',
+            'updatedAt'
+          ])
+        );
+
+      allow delete: if false;
+    }
+
+    // 4. Direct E2EE Conversations Collection
+    match /conversations/{conversationId} {
+      allow get: if isSignedIn()
+        && isValidId(conversationId)
+        && (
+          (resource == null && isVerifiedUser())
+          || (
+            resource != null
+            && (existing().participantOneId == request.auth.uid || existing().participantTwoId == request.auth.uid)
+          )
+        );
+
+      allow list: if isSignedIn()
+        && (resource.data.participantOneId == request.auth.uid || resource.data.participantTwoId == request.auth.uid);
+
+      allow create: if isVerifiedUser()
+        && isValidId(conversationId)
+        && isValidConversation(incoming())
+        && incoming().id == conversationId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/publicProfiles/$(incoming().participantOneId))
+        && exists(/databases/$(database)/documents/publicProfiles/$(incoming().participantTwoId));
+
+      allow update: if isVerifiedUser()
+        && isValidId(conversationId)
+        && isValidConversation(incoming())
+        && (existing().participantOneId == request.auth.uid || existing().participantTwoId == request.auth.uid)
+        && incoming().id == existing().id
+        && incoming().participantOneId == existing().participantOneId
+        && incoming().participantTwoId == existing().participantTwoId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Update encrypted conversation preview and E2EE public keys
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'lastMessagePreview',
+              'lastMessageCiphertext',
+              'lastMessageIv',
+              'lastMessageTimeMs',
+              'participantOneName',
+              'participantOnePhoto',
+              'participantTwoName',
+              'participantTwoPhoto',
+              'participantOnePubKey',
+              'participantTwoPubKey',
+              'updatedAt'
+            ])
+          )
+          ||
+          // Action 2: Live audio/video call signaling state transition
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'activeCallType',
+              'activeCallStatus',
+              'activeCallInitiatorId',
+              'updatedAt'
+            ])
+          )
+          ||
+          // Action 3: End call and update encrypted last message summary simultaneously
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'activeCallType',
+              'activeCallStatus',
+              'activeCallInitiatorId',
+              'lastMessagePreview',
+              'lastMessageCiphertext',
+              'lastMessageIv',
+              'lastMessageTimeMs',
+              'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if false;
+
+      // 5. E2EE Messages Subcollection (Master Gate + Zero-Get List)
+      match /messages/{messageId} {
+        allow get: if isSignedIn()
+          && isValidId(conversationId)
+          && isValidId(messageId)
+          && (
+            resource == null
+            || (existing().participantOneId == request.auth.uid || existing().participantTwoId == request.auth.uid)
+          )
+          && isConversationMemberByGet(conversationId);
+
+        allow list: if isSignedIn()
+          && (resource.data.participantOneId == request.auth.uid || resource.data.participantTwoId == request.auth.uid);
+
+        allow create: if isVerifiedUser()
+          && isValidId(conversationId)
+          && isValidId(messageId)
+          && isValidChatMessage(incoming())
+          && incoming().id == messageId
+          && incoming().senderId == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && matchesParentConversation(conversationId, incoming());
+
+        allow update: if isVerifiedUser()
+          && isValidId(conversationId)
+          && isValidId(messageId)
+          && isValidChatMessage(incoming())
+          && existing().status != 'read'
+          && incoming().id == existing().id
+          && incoming().conversationId == existing().conversationId
+          && incoming().participantOneId == existing().participantOneId
+          && incoming().participantTwoId == existing().participantTwoId
+          && incoming().senderId == existing().senderId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && isConversationMemberByGet(conversationId)
+          && (
+            // Action: Recipient marks message as delivered or read (Terminal State Locked at 'read')
+            request.auth.uid != existing().senderId
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          );
+
+        allow delete: if isVerifiedUser()
+          && isValidId(conversationId)
+          && isValidId(messageId)
+          && existing().senderId == request.auth.uid
+          && isConversationMemberByGet(conversationId);
+      }
+    }
+  }
+}
